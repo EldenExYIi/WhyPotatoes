@@ -11679,6 +11679,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerDigging
   interactAction: {fileID: 11400000, guid: 2598c7262b5914049a1af8d7cb68429e, type: 2}
+  attackAction: {fileID: 11400000, guid: a5c46b1c04dcc3c4fac435177d2ae76e, type: 2}
   settings: {fileID: 11400000, guid: 6fc0dce86a85dd442acb91bfd00ed0d1, type: 2}
   shovelGrip: {fileID: 1876788916}
   shovelSwing: {fileID: 7400000, guid: 5b3f8f8adbb9dc445862a476c02ad1c4, type: 2}

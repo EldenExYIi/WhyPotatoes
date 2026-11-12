@@ -5,10 +5,11 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(Rigidbody), typeof(PlayerMovement), typeof(AudioSource))]
 public sealed class PlayerDigging : MonoBehaviour
 {
-    private enum Phase { Ready, Windup, Strike, Pry, Anticipation, Reveal, Reset }
+    private enum Phase { Ready, Windup, Strike, Pry, Anticipation, Reveal, Reset, Attack }
     private const float SwingImpactNormalizedTime = 0.5f;
 
     [SerializeField] private InputActionReference interactAction;
+    [SerializeField] private InputActionReference attackAction;
     [SerializeField] private DigSettings settings;
     [SerializeField] private Transform shovelGrip;
     [SerializeField] private AnimationClip shovelSwing;
@@ -42,12 +43,19 @@ public sealed class PlayerDigging : MonoBehaviour
         restRotation = shovelGrip.localRotation;
     }
 
-    private void OnEnable() => interactAction.action.Enable();
+    private void OnEnable()
+    {
+        interactAction.action.Enable();
+        attackAction?.action?.Enable();
+    }
 
     private void OnDisable()
     {
         interactAction?.action?.Disable();
+        attackAction?.action?.Disable();
         StopAllCoroutines();
+        if (phase == Phase.Attack)
+            ResetShovel();
         if (activeSpot == null)
             return;
 
@@ -59,8 +67,19 @@ public sealed class PlayerDigging : MonoBehaviour
 
     private void Update()
     {
-        if (interactAction.action.WasPressedThisFrame())
-            TryDig();
+        if (phase != Phase.Ready)
+            return;
+        if (interactAction.action.WasPressedThisFrame() && TryDig())
+            return;
+        if (shovelSwing != null && attackAction?.action?.WasPressedThisFrame() == true)
+            StartCoroutine(Attack());
+    }
+
+    private IEnumerator Attack()
+    {
+        phase = Phase.Attack;
+        yield return PlaySwing(0f, shovelSwing.length, new Pose(restOffset, restRotation), shovelSwing.length);
+        ResetShovel();
     }
 
     public bool TryDig()
@@ -279,10 +298,15 @@ public sealed class PlayerDigging : MonoBehaviour
 
     private void RestoreControl()
     {
-        shovelGrip.SetLocalPositionAndRotation(restOffset, restRotation);
+        ResetShovel();
         activeSpot = null;
-        phase = Phase.Ready;
         movement.enabled = true;
+    }
+
+    private void ResetShovel()
+    {
+        shovelGrip.SetLocalPositionAndRotation(restOffset, restRotation);
+        phase = Phase.Ready;
     }
 
     private void OnGUI()

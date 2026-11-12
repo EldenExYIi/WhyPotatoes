@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -7,6 +8,11 @@ public sealed class PlayerDigging : MonoBehaviour
 {
     private enum Phase { Ready, Windup, Strike, Pry, Anticipation, Reveal, Reset, Attack }
     private const float SwingImpactNormalizedTime = 0.5f;
+    private const float AttackHitStart = 0.25f;
+    private const float AttackHitEnd = 0.65f;
+    private const float ShovelHitRadius = 0.22f;
+    private const float KnockbackSpeed = 4f;
+    private const float LaunchSpeed = 3.5f;
 
     [SerializeField] private InputActionReference interactAction;
     [SerializeField] private InputActionReference attackAction;
@@ -78,8 +84,55 @@ public sealed class PlayerDigging : MonoBehaviour
     private IEnumerator Attack()
     {
         phase = Phase.Attack;
-        yield return PlaySwing(0f, shovelSwing.length, new Pose(restOffset, restRotation), shovelSwing.length);
+        var hitPotatoes = new HashSet<PotatoRoll>();
+        Pose clipStart = SampleSwing(0f);
+        Quaternion gripRotation = restRotation * Quaternion.Inverse(clipStart.rotation);
+        shovelGrip.SetLocalPositionAndRotation(restOffset, restRotation);
+        Vector3 previousTip = shovelGrip.TransformPoint(settings.tipOffset);
+        float previousProgress = 0f;
+        float duration = shovelSwing.length;
+
+        for (float elapsed = 0f; elapsed < duration;)
+        {
+            yield return null;
+            elapsed += Time.deltaTime;
+            float progress = Mathf.Clamp01(elapsed / duration);
+            Pose sample = SampleSwing(progress * duration);
+            shovelGrip.SetLocalPositionAndRotation(restOffset + sample.position - clipStart.position,
+                gripRotation * sample.rotation);
+            Vector3 tip = shovelGrip.TransformPoint(settings.tipOffset);
+
+            // Sweep only the part of this frame's blade path inside the strike window.
+            if (progress >= AttackHitStart && previousProgress <= AttackHitEnd)
+            {
+                float from = Mathf.InverseLerp(previousProgress, progress, AttackHitStart);
+                float to = Mathf.InverseLerp(previousProgress, progress, AttackHitEnd);
+                HitPotatoes(Vector3.Lerp(previousTip, tip, from), Vector3.Lerp(previousTip, tip, to), hitPotatoes);
+            }
+
+            previousTip = tip;
+            previousProgress = progress;
+        }
+
         ResetShovel();
+    }
+
+    private void HitPotatoes(Vector3 from, Vector3 to, HashSet<PotatoRoll> hitPotatoes)
+    {
+        // Dug potatoes use Ignore Raycast so they don't obstruct mound interactions.
+        foreach (Collider hit in Physics.OverlapCapsule(from, to, ShovelHitRadius,
+                     Physics.AllLayers, QueryTriggerInteraction.Ignore))
+        {
+            Rigidbody target = hit.attachedRigidbody;
+            if (target == null || target.isKinematic || !target.TryGetComponent(out PotatoRoll potato) ||
+                !hitPotatoes.Add(potato))
+                continue;
+
+            Vector3 away = Vector3.ProjectOnPlane(target.worldCenterOfMass - body.position, Vector3.up).normalized;
+            if (away == Vector3.zero)
+                away = transform.forward;
+            target.AddForce(away * KnockbackSpeed + Vector3.up * LaunchSpeed, ForceMode.VelocityChange);
+        }
     }
 
     public bool TryDig()

@@ -8,6 +8,8 @@ public sealed class PlayerDigging : MonoBehaviour
 {
     private enum Phase { Ready, Windup, Strike, Pry, Anticipation, Reveal, Reset, Attack }
     private const float SwingImpactNormalizedTime = 0.5f;
+    private const float SpotReuseRadius = 0.3f;
+    private const float DugSoilLifetime = 3f;
 
     [SerializeField] private InputActionReference interactAction;
     [SerializeField] private InputActionReference attackAction;
@@ -15,7 +17,9 @@ public sealed class PlayerDigging : MonoBehaviour
     [SerializeField] private ShovelAttackSettings attackSettings;
     [SerializeField] private Transform shovelGrip;
     [SerializeField] private AnimationClip shovelSwing;
-    [SerializeField] private DigSpot[] spots = System.Array.Empty<DigSpot>();
+    [SerializeField] private Collider digSurface;
+    [SerializeField] private DigSpot spotPrefab;
+    [SerializeField] private DigResult[] results = System.Array.Empty<DigResult>();
 
     [Header("Runtime inspection")]
     [SerializeField] private Phase phase;
@@ -29,6 +33,8 @@ public sealed class PlayerDigging : MonoBehaviour
     private Vector3 restOffset;
     private Quaternion restRotation;
     private GameObject emergingPotato;
+    private readonly List<DigSpot> dugSpots = new();
+    private int completedExcavations;
 
     private void Awake()
     {
@@ -182,38 +188,57 @@ public sealed class PlayerDigging : MonoBehaviour
         if (!isActiveAndEnabled || phase != Phase.Ready)
             return false;
 
-        DigSpot target = FindNearestSpot();
-        if (target == null)
+        if (!TryGetDigTarget(out Vector3 point, out DigSpot target))
             return false;
+
+        if (target == null)
+        {
+            dugSpots.RemoveAll(spot => spot == null);
+            target = Instantiate(spotPrefab, point, Quaternion.identity);
+            dugSpots.Add(target);
+        }
 
         StartCoroutine(Dig(target));
         return true;
     }
 
-    private DigSpot FindNearestSpot()
+    private bool TryGetDigTarget(out Vector3 point, out DigSpot target)
     {
-        float bestDistance = settings.reach * settings.reach;
-        DigSpot nearest = null;
-        foreach (DigSpot spot in spots)
+        point = default;
+        target = null;
+        if (digSurface == null || spotPrefab == null || results.Length == 0)
+            return false;
+
+        Vector3 forward = Vector3.ProjectOnPlane(body.rotation * Vector3.forward, Vector3.up).normalized;
+        Vector3 origin = body.position + forward * settings.reach;
+        origin.y = digSurface.bounds.max.y + 0.1f;
+        if (!digSurface.Raycast(new Ray(origin, Vector3.down), out RaycastHit hit, 0.2f))
+            return false;
+
+        point = hit.point;
+        float nearestDistance = SpotReuseRadius * SpotReuseRadius;
+        foreach (DigSpot spot in dugSpots)
         {
-            if (spot == null || !spot.Available)
+            if (spot == null)
                 continue;
 
-            Vector3 offset = spot.ImpactPoint - transform.position;
-            offset.y = 0f;
-            if (offset.sqrMagnitude >= bestDistance || IsObstructed(spot))
+            float distance = (point - spot.ImpactPoint).sqrMagnitude;
+            if (distance > nearestDistance)
                 continue;
 
-            bestDistance = offset.sqrMagnitude;
-            nearest = spot;
+            nearestDistance = distance;
+            target = spot;
         }
-        return nearest;
+
+        if (target != null)
+            point = target.ImpactPoint;
+        return (target == null || !target.Excavated) && !IsObstructed(point);
     }
 
-    private bool IsObstructed(DigSpot spot)
+    private bool IsObstructed(Vector3 point)
     {
-        Vector3 end = spot.ImpactPoint + Vector3.up * settings.obstructionProbeOffset;
-        Vector3 start = transform.position;
+        Vector3 end = point + Vector3.up * settings.obstructionProbeOffset;
+        Vector3 start = body.position;
         start.y = end.y;
         return Physics.Linecast(start, end, settings.obstructionLayers, QueryTriggerInteraction.Ignore);
     }
@@ -243,7 +268,7 @@ public sealed class PlayerDigging : MonoBehaviour
             yield return MoveGrip(restOffset, restRotation, settings.resetSeconds);
             target.RecordDig();
         }
-        while (interactAction.action.IsPressed() && !IsObstructed(target));
+        while (interactAction.action.IsPressed() && !IsObstructed(target.ImpactPoint));
 
         RestoreControl();
     }
@@ -270,6 +295,7 @@ public sealed class PlayerDigging : MonoBehaviour
         else
             yield return MoveGrip(contactOffset, contact, settings.strikeSeconds);
 
+        target.ShowDisturbedSoil();
         if (settings.dirtPrefab != null)
         {
             ParticleSystem dirt = Instantiate(settings.dirtPrefab, target.ImpactPoint, Quaternion.identity);
@@ -300,7 +326,7 @@ public sealed class PlayerDigging : MonoBehaviour
 
             float t = elapsed / duration;
             Pose sample = SampleSwing(shovelSwing, Mathf.Lerp(from, to, t));
-            // Retarget the clip's endpoints to the grip and mound while keeping its motion between them.
+            // Retarget the clip's endpoints to the grip and impact point while keeping its motion between them.
             Vector3 clipOffset = sample.position - Vector3.Lerp(clipStart.position, clipEnd.position, t);
             Quaternion clipRotation = Quaternion.Inverse(Quaternion.Slerp(clipStart.rotation, clipEnd.rotation, t)) *
                 sample.rotation;
@@ -335,13 +361,19 @@ public sealed class PlayerDigging : MonoBehaviour
         Transform reveal = target.RevealPoint;
         Vector3 finalPosition = reveal.position;
         Quaternion finalRotation = reveal.rotation;
-        emergingPotato = Instantiate(target.Result.prefab, finalPosition, finalRotation);
+        int resultIndex = completedExcavations < results.Length
+            ? completedExcavations
+            : Random.Range(0, results.Length);
+        DigResult result = results[resultIndex];
+        emergingPotato = Instantiate(result.prefab, finalPosition, finalRotation);
         yield return AnimateReveal(emergingPotato.transform, finalPosition, finalRotation);
         yield return MoveGrip(restOffset, restRotation, settings.resetSeconds);
 
         target.RecordDig();
         target.Complete();
-        lastResult = target.Result;
+        Destroy(target.gameObject, DugSoilLifetime);
+        completedExcavations++;
+        lastResult = result;
         if (emergingPotato.TryGetComponent(out PotatoRoll roll))
         {
             Vector3 direction = Vector3.ProjectOnPlane(finalPosition - body.position, Vector3.up).normalized;
@@ -409,13 +441,12 @@ public sealed class PlayerDigging : MonoBehaviour
         if (phase != Phase.Ready)
             return;
 
-        DigSpot target = FindNearestSpot();
-        if (target == null)
+        if (!TryGetDigTarget(out _, out DigSpot target))
             return;
 
         string prompt = interactAction.action.GetBindingDisplayString(0) + "  Dig";
         if (settings.digsRequired > 1)
-            prompt = $"Hold {prompt}  ({target.CompletedDigs}/{settings.digsRequired})";
+            prompt = $"Hold {prompt}  ({target?.CompletedDigs ?? 0}/{settings.digsRequired})";
         GUI.Box(new Rect((Screen.width - 140) * 0.5f, Screen.height - 66, 140, 28), prompt);
     }
 }

@@ -3,20 +3,16 @@ using UnityEngine;
 public sealed class DigSpot : MonoBehaviour
 {
     [SerializeField] private Transform mound;
-    [SerializeField] private Transform impactPoint;
+    [SerializeField] private GameObject dugSoil;
     [SerializeField] private Transform revealPoint;
-    [SerializeField] private DigResult fixedResult;
-    [SerializeField] private bool excavated;
 
     public int CompletedDigs { get; private set; }
 
     private Vector3 moundRestPosition;
 
-    public bool Available => !excavated && mound != null && impactPoint != null &&
-        revealPoint != null && fixedResult != null && fixedResult.prefab != null;
-    public Vector3 ImpactPoint => impactPoint.position;
+    public bool Excavated { get; private set; }
+    public Vector3 ImpactPoint => transform.position;
     public Transform RevealPoint => revealPoint;
-    public DigResult Result => fixedResult;
 
     private void Awake()
     {
@@ -27,13 +23,15 @@ public sealed class DigSpot : MonoBehaviour
     public void Wiggle(float distance) =>
         mound.localPosition = moundRestPosition + Vector3.right * distance;
 
+    public void ShowDisturbedSoil() => mound.gameObject.SetActive(true);
+
     public void RecordDig() => CompletedDigs++;
 
     public void Complete()
     {
         Wiggle(0f);
-        excavated = true;
+        Excavated = true;
         mound.gameObject.SetActive(false);
+        dugSoil.SetActive(true);
     }
 }
-

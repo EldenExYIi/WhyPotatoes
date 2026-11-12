@@ -48,6 +48,16 @@ public class CameraMovement : MonoBehaviour
 
     private float yaw;
     private float pitch;
+    private float shakeAmplitude;
+    private float shakeDuration;
+    private float shakeStartTime;
+
+    public void Shake(float amplitude, float duration)
+    {
+        shakeAmplitude = amplitude;
+        shakeDuration = duration;
+        shakeStartTime = Time.time;
+    }
 
     private void Awake()
     {
@@ -121,6 +131,15 @@ public class CameraMovement : MonoBehaviour
         // 沿相机朝向的反方向退后，得到相机位置。
         Vector3 cameraPosition =
             focusPosition + rotation * new Vector3(shoulderOffset, 0f, -distance);
+
+        float shakeElapsed = Time.time - shakeStartTime;
+        if (shakeElapsed < shakeDuration)
+        {
+            float fade = 1f - shakeElapsed / shakeDuration;
+            float angle = shakeElapsed * 2f * Mathf.PI * 24f;
+            Vector3 offset = new Vector3(Mathf.Sin(angle), Mathf.Cos(angle) * 0.5f, 0f);
+            cameraPosition += rotation * (offset * (shakeAmplitude * fade));
+        }
 
         transform.SetPositionAndRotation(cameraPosition, rotation);
     }

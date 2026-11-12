@@ -13,6 +13,8 @@ public sealed class PlayerDigging : MonoBehaviour
     private const float ShovelHitRadius = 0.22f;
     private const float KnockbackSpeed = 4f;
     private const float LaunchSpeed = 3.5f;
+    private const float HitShakeAmplitude = 0.045f;
+    private const float HitShakeDuration = 0.14f;
 
     [SerializeField] private InputActionReference interactAction;
     [SerializeField] private InputActionReference attackAction;
@@ -29,6 +31,7 @@ public sealed class PlayerDigging : MonoBehaviour
     private Rigidbody body;
     private PlayerMovement movement;
     private AudioSource audioSource;
+    private CameraMovement cameraMovement;
     private Vector3 restOffset;
     private Quaternion restRotation;
     private GameObject emergingPotato;
@@ -38,6 +41,9 @@ public sealed class PlayerDigging : MonoBehaviour
         body = GetComponent<Rigidbody>();
         movement = GetComponent<PlayerMovement>();
         audioSource = GetComponent<AudioSource>();
+        Camera mainCamera = Camera.main;
+        if (mainCamera != null)
+            cameraMovement = mainCamera.GetComponent<CameraMovement>();
         if (settings == null || shovelGrip == null || interactAction?.action == null)
         {
             Debug.LogError("Assign Dig Settings, Shovel Grip and Interact Action.", this);
@@ -119,6 +125,7 @@ public sealed class PlayerDigging : MonoBehaviour
 
     private void HitPotatoes(Vector3 from, Vector3 to, HashSet<PotatoRoll> hitPotatoes)
     {
+        int previousHitCount = hitPotatoes.Count;
         // Dug potatoes use Ignore Raycast so they don't obstruct mound interactions.
         foreach (Collider hit in Physics.OverlapCapsule(from, to, ShovelHitRadius,
                      Physics.AllLayers, QueryTriggerInteraction.Ignore))
@@ -133,6 +140,19 @@ public sealed class PlayerDigging : MonoBehaviour
                 away = transform.forward;
             target.AddForce(away * KnockbackSpeed + Vector3.up * LaunchSpeed, ForceMode.VelocityChange);
         }
+
+        if (hitPotatoes.Count == previousHitCount)
+            return;
+
+        PlayImpactSound();
+        if (cameraMovement != null)
+            cameraMovement.Shake(HitShakeAmplitude, HitShakeDuration);
+    }
+
+    private void PlayImpactSound()
+    {
+        if (settings.impactSound != null)
+            audioSource.PlayOneShot(settings.impactSound, settings.impactVolume);
     }
 
     public bool TryDig()
@@ -233,8 +253,7 @@ public sealed class PlayerDigging : MonoBehaviour
             ParticleSystem dirt = Instantiate(settings.dirtPrefab, target.ImpactPoint, Quaternion.identity);
             dirt.Play();
         }
-        if (settings.impactSound != null)
-            audioSource.PlayOneShot(settings.impactSound, settings.impactVolume);
+        PlayImpactSound();
 
         phase = Phase.Pry;
         if (shovelSwing != null)

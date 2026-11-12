@@ -14,6 +14,7 @@ public sealed class ShovelAttackSettings : ScriptableObject
     [Range(0f, 1f)] public float hitStart = 0.25f;
     [Range(0f, 1f)] public float hitEnd = 0.65f;
     [Min(0f)] public float hitRadius = 0.22f;
+    [Min(0)] public int damage = 1;
 
     [Header("Knockback")]
     [Min(0f)] public float knockbackSpeed = 4f;

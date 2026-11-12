@@ -134,7 +134,7 @@ public sealed class PlayerDigging : MonoBehaviour
         {
             Rigidbody target = hit.attachedRigidbody;
             if (target == null || target.isKinematic || !target.TryGetComponent(out PotatoRoll potato) ||
-                !hitPotatoes.Add(potato))
+                potato.CurrentHealth <= 0 || !hitPotatoes.Add(potato))
                 continue;
 
             Vector3 away = Vector3.ProjectOnPlane(target.worldCenterOfMass - body.position, Vector3.up).normalized;
@@ -142,7 +142,8 @@ public sealed class PlayerDigging : MonoBehaviour
                 away = transform.forward;
             if (attack.hitEffect != null)
                 PlayHitEffect(hit, from, to, -away, attack);
-            target.AddForce(away * attack.knockbackSpeed + Vector3.up * attack.launchSpeed, ForceMode.VelocityChange);
+            if (!potato.TakeDamage(attack.damage))
+                target.AddForce(away * attack.knockbackSpeed + Vector3.up * attack.launchSpeed, ForceMode.VelocityChange);
         }
 
         if (hitPotatoes.Count == previousHitCount)
@@ -346,7 +347,7 @@ public sealed class PlayerDigging : MonoBehaviour
             Vector3 direction = Vector3.ProjectOnPlane(finalPosition - body.position, Vector3.up).normalized;
             if (direction == Vector3.zero)
                 direction = transform.forward;
-            roll.Begin(direction, lastResult.rollSpeed, lastResult.rollDelaySeconds, GetComponent<Collider>());
+            roll.Begin(direction, lastResult, GetComponent<Collider>());
         }
         emergingPotato = null;
     }

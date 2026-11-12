@@ -22,6 +22,7 @@ MonoBehaviour:
   hitStart: 0.25
   hitEnd: 0.65
   hitRadius: 0.22
+  damage: 1
   knockbackSpeed: 4
   launchSpeed: 3.5
   hitSound: {fileID: 8300000, guid: 5fc3b18047a2cbf4793a9a993b6de53b, type: 3}

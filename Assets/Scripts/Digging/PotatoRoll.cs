@@ -4,9 +4,23 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody), typeof(SphereCollider))]
 public sealed class PotatoRoll : MonoBehaviour
 {
-    public void Begin(Vector3 direction, float speed, float delay, Collider playerCollider)
+    public int CurrentHealth { get; private set; }
+
+    public void Begin(Vector3 direction, DigResult result, Collider playerCollider)
     {
-        StartCoroutine(ActivatePhysics(direction, speed, delay, playerCollider));
+        CurrentHealth = Mathf.Max(1, result.maxHealth);
+        StartCoroutine(ActivatePhysics(direction, result.rollSpeed, result.rollDelaySeconds, playerCollider));
+    }
+
+    public bool TakeDamage(int damage)
+    {
+        CurrentHealth = Mathf.Max(0, CurrentHealth - Mathf.Max(0, damage));
+        if (CurrentHealth > 0)
+            return false;
+
+        gameObject.SetActive(false);
+        Destroy(gameObject);
+        return true;
     }
 
     private IEnumerator ActivatePhysics(Vector3 direction, float speed, float delay, Collider playerCollider)

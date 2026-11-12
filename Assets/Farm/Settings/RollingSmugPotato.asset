@@ -13,5 +13,6 @@ MonoBehaviour:
   m_Name: RollingSmugPotato
   m_EditorClassIdentifier: Assembly-CSharp::DigResult
   prefab: {fileID: 9144605690214753931, guid: bfecf95841ae5684ab5e5075c523194d, type: 3}
+  maxHealth: 3
   rollSpeed: 0
   rollDelaySeconds: 0

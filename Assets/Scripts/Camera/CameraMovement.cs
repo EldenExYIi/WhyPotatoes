@@ -50,12 +50,14 @@ public class CameraMovement : MonoBehaviour
     private float pitch;
     private float shakeAmplitude;
     private float shakeDuration;
+    private float shakeFrequency;
     private float shakeStartTime;
 
-    public void Shake(float amplitude, float duration)
+    public void Shake(float amplitude, float duration, float frequency)
     {
         shakeAmplitude = amplitude;
         shakeDuration = duration;
+        shakeFrequency = frequency;
         shakeStartTime = Time.time;
     }
 
@@ -136,7 +138,7 @@ public class CameraMovement : MonoBehaviour
         if (shakeElapsed < shakeDuration)
         {
             float fade = 1f - shakeElapsed / shakeDuration;
-            float angle = shakeElapsed * 2f * Mathf.PI * 24f;
+            float angle = shakeElapsed * 2f * Mathf.PI * shakeFrequency;
             Vector3 offset = new Vector3(Mathf.Sin(angle), Mathf.Cos(angle) * 0.5f, 0f);
             cameraPosition += rotation * (offset * (shakeAmplitude * fade));
         }

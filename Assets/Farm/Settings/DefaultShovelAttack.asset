@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6df2e286887983f43b306abe97b93c0f, type: 3}
+  m_Name: DefaultShovelAttack
+  m_EditorClassIdentifier: Assembly-CSharp::ShovelAttackSettings
+  swing: {fileID: 7400000, guid: 5b3f8f8adbb9dc445862a476c02ad1c4, type: 2}
+  playbackSpeed: 1
+  hitStopSeconds: 0.06
+  bladeTipOffset: {x: 0, y: -1.06, z: 0}
+  hitLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  hitStart: 0.25
+  hitEnd: 0.65
+  hitRadius: 0.22
+  knockbackSpeed: 4
+  launchSpeed: 3.5
+  hitSound: {fileID: 8300000, guid: 5fc3b18047a2cbf4793a9a993b6de53b, type: 3}
+  hitVolume: 0.65
+  shakeAmplitude: 0.045
+  shakeSeconds: 0.14
+  shakeFrequency: 24

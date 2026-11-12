@@ -8,17 +8,11 @@ public sealed class PlayerDigging : MonoBehaviour
 {
     private enum Phase { Ready, Windup, Strike, Pry, Anticipation, Reveal, Reset, Attack }
     private const float SwingImpactNormalizedTime = 0.5f;
-    private const float AttackHitStart = 0.25f;
-    private const float AttackHitEnd = 0.65f;
-    private const float ShovelHitRadius = 0.22f;
-    private const float KnockbackSpeed = 4f;
-    private const float LaunchSpeed = 3.5f;
-    private const float HitShakeAmplitude = 0.045f;
-    private const float HitShakeDuration = 0.14f;
 
     [SerializeField] private InputActionReference interactAction;
     [SerializeField] private InputActionReference attackAction;
     [SerializeField] private DigSettings settings;
+    [SerializeField] private ShovelAttackSettings attackSettings;
     [SerializeField] private Transform shovelGrip;
     [SerializeField] private AnimationClip shovelSwing;
     [SerializeField] private DigSpot[] spots = System.Array.Empty<DigSpot>();
@@ -83,37 +77,46 @@ public sealed class PlayerDigging : MonoBehaviour
             return;
         if (interactAction.action.WasPressedThisFrame() && TryDig())
             return;
-        if (shovelSwing != null && attackAction?.action?.WasPressedThisFrame() == true)
-            StartCoroutine(Attack());
+        if (attackSettings != null && attackSettings.swing != null &&
+            attackAction?.action?.WasPressedThisFrame() == true)
+            StartCoroutine(Attack(attackSettings));
     }
 
-    private IEnumerator Attack()
+    private IEnumerator Attack(ShovelAttackSettings attack)
     {
         phase = Phase.Attack;
         var hitPotatoes = new HashSet<PotatoRoll>();
-        Pose clipStart = SampleSwing(0f);
+        AnimationClip clip = attack.swing;
+        Pose clipStart = SampleSwing(clip, 0f);
         Quaternion gripRotation = restRotation * Quaternion.Inverse(clipStart.rotation);
         shovelGrip.SetLocalPositionAndRotation(restOffset, restRotation);
-        Vector3 previousTip = shovelGrip.TransformPoint(settings.tipOffset);
+        Vector3 previousTip = shovelGrip.TransformPoint(attack.bladeTipOffset);
         float previousProgress = 0f;
-        float duration = shovelSwing.length;
+        float duration = clip.length;
 
         for (float elapsed = 0f; elapsed < duration;)
         {
             yield return null;
-            elapsed += Time.deltaTime;
+            elapsed += Time.deltaTime * Mathf.Max(0.01f, attack.playbackSpeed);
             float progress = Mathf.Clamp01(elapsed / duration);
-            Pose sample = SampleSwing(progress * duration);
+            Pose sample = SampleSwing(clip, progress * duration);
             shovelGrip.SetLocalPositionAndRotation(restOffset + sample.position - clipStart.position,
                 gripRotation * sample.rotation);
-            Vector3 tip = shovelGrip.TransformPoint(settings.tipOffset);
+            Vector3 tip = shovelGrip.TransformPoint(attack.bladeTipOffset);
 
             // Sweep only the part of this frame's blade path inside the strike window.
-            if (progress >= AttackHitStart && previousProgress <= AttackHitEnd)
+            if (progress >= attack.hitStart && previousProgress <= attack.hitEnd)
             {
-                float from = Mathf.InverseLerp(previousProgress, progress, AttackHitStart);
-                float to = Mathf.InverseLerp(previousProgress, progress, AttackHitEnd);
-                HitPotatoes(Vector3.Lerp(previousTip, tip, from), Vector3.Lerp(previousTip, tip, to), hitPotatoes);
+                float from = Mathf.InverseLerp(previousProgress, progress, attack.hitStart);
+                float to = Mathf.InverseLerp(previousProgress, progress, attack.hitEnd);
+                bool hit = HitPotatoes(Vector3.Lerp(previousTip, tip, from),
+                    Vector3.Lerp(previousTip, tip, to), hitPotatoes, attack);
+                if (hit && attack.hitStopSeconds > 0f)
+                {
+                    yield return new WaitForSeconds(attack.hitStopSeconds);
+                    // The player can move during the pause, so resume from the current blade position.
+                    tip = shovelGrip.TransformPoint(attack.bladeTipOffset);
+                }
             }
 
             previousTip = tip;
@@ -123,12 +126,11 @@ public sealed class PlayerDigging : MonoBehaviour
         ResetShovel();
     }
 
-    private void HitPotatoes(Vector3 from, Vector3 to, HashSet<PotatoRoll> hitPotatoes)
+    private bool HitPotatoes(Vector3 from, Vector3 to, HashSet<PotatoRoll> hitPotatoes, ShovelAttackSettings attack)
     {
         int previousHitCount = hitPotatoes.Count;
-        // Dug potatoes use Ignore Raycast so they don't obstruct mound interactions.
-        foreach (Collider hit in Physics.OverlapCapsule(from, to, ShovelHitRadius,
-                     Physics.AllLayers, QueryTriggerInteraction.Ignore))
+        foreach (Collider hit in Physics.OverlapCapsule(from, to, attack.hitRadius,
+                     attack.hitLayers, QueryTriggerInteraction.Ignore))
         {
             Rigidbody target = hit.attachedRigidbody;
             if (target == null || target.isKinematic || !target.TryGetComponent(out PotatoRoll potato) ||
@@ -138,21 +140,17 @@ public sealed class PlayerDigging : MonoBehaviour
             Vector3 away = Vector3.ProjectOnPlane(target.worldCenterOfMass - body.position, Vector3.up).normalized;
             if (away == Vector3.zero)
                 away = transform.forward;
-            target.AddForce(away * KnockbackSpeed + Vector3.up * LaunchSpeed, ForceMode.VelocityChange);
+            target.AddForce(away * attack.knockbackSpeed + Vector3.up * attack.launchSpeed, ForceMode.VelocityChange);
         }
 
         if (hitPotatoes.Count == previousHitCount)
-            return;
+            return false;
 
-        PlayImpactSound();
+        if (attack.hitSound != null && attack.hitVolume > 0f)
+            audioSource.PlayOneShot(attack.hitSound, attack.hitVolume);
         if (cameraMovement != null)
-            cameraMovement.Shake(HitShakeAmplitude, HitShakeDuration);
-    }
-
-    private void PlayImpactSound()
-    {
-        if (settings.impactSound != null)
-            audioSource.PlayOneShot(settings.impactSound, settings.impactVolume);
+            cameraMovement.Shake(attack.shakeAmplitude, attack.shakeSeconds, attack.shakeFrequency);
+        return true;
     }
 
     public bool TryDig()
@@ -253,7 +251,8 @@ public sealed class PlayerDigging : MonoBehaviour
             ParticleSystem dirt = Instantiate(settings.dirtPrefab, target.ImpactPoint, Quaternion.identity);
             dirt.Play();
         }
-        PlayImpactSound();
+        if (settings.impactSound != null)
+            audioSource.PlayOneShot(settings.impactSound, settings.impactVolume);
 
         phase = Phase.Pry;
         if (shovelSwing != null)
@@ -267,8 +266,8 @@ public sealed class PlayerDigging : MonoBehaviour
         float strikeStartsAt = float.PositiveInfinity)
     {
         var start = new Pose(shovelGrip.localPosition, shovelGrip.localRotation);
-        Pose clipStart = SampleSwing(from);
-        Pose clipEnd = SampleSwing(to);
+        Pose clipStart = SampleSwing(shovelSwing, from);
+        Pose clipEnd = SampleSwing(shovelSwing, to);
 
         for (float elapsed = 0f; elapsed < duration; elapsed += Time.deltaTime)
         {
@@ -276,7 +275,7 @@ public sealed class PlayerDigging : MonoBehaviour
                 phase = Phase.Strike;
 
             float t = elapsed / duration;
-            Pose sample = SampleSwing(Mathf.Lerp(from, to, t));
+            Pose sample = SampleSwing(shovelSwing, Mathf.Lerp(from, to, t));
             // Retarget the clip's endpoints to the grip and mound while keeping its motion between them.
             Vector3 clipOffset = sample.position - Vector3.Lerp(clipStart.position, clipEnd.position, t);
             Quaternion clipRotation = Quaternion.Inverse(Quaternion.Slerp(clipStart.rotation, clipEnd.rotation, t)) *
@@ -291,10 +290,10 @@ public sealed class PlayerDigging : MonoBehaviour
         shovelGrip.SetLocalPositionAndRotation(target.position, target.rotation);
     }
 
-    private Pose SampleSwing(float time)
+    private Pose SampleSwing(AnimationClip clip, float time)
     {
         // The clip binds to ShovelPivot, a direct child of the player.
-        shovelSwing.SampleAnimation(gameObject, time);
+        clip.SampleAnimation(gameObject, time);
         return new Pose(shovelGrip.localPosition, shovelGrip.localRotation);
     }
 

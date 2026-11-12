@@ -14,6 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::DigSettings
   reach: 1.65
   digsRequired: 3
+  obstructionLayers:
+    serializedVersion: 2
+    m_Bits: 51
+  obstructionProbeOffset: 0.12
   tipOffset: {x: 0, y: -1.06, z: 0}
   raisedOffset: {x: 0.49, y: 0.69, z: 0.33}
   raisedAngles: {x: -48, y: 0, z: -18}
@@ -29,5 +33,5 @@ MonoBehaviour:
   impactVolume: 0.65
   anticipationSeconds: 0.32
   moundWiggle: 0.08
-  revealSeconds: 0.38
-  revealHop: 0.32
+  revealSeconds: 1.5
+  revealHoverHeight: 1

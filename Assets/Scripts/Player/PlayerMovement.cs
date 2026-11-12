@@ -23,12 +23,21 @@ public class PlayerMovement : MonoBehaviour
     [Tooltip("角色每秒最多旋转的角度，数值越大转身越快。")]
     private float rotationSpeed = 720f;
 
+    [Header("跳跃设置")]
+    [SerializeField] private InputActionReference jumpAction;
+    [SerializeField, Min(0f)] private float jumpSpeed = 5.2f;
+    [SerializeField, Min(0f)] private float groundCheckDistance = 0.08f;
+    [SerializeField] private LayerMask groundLayers = ~0;
+
     private Rigidbody playerRigidbody;
+    private CapsuleCollider playerCapsule;
     private Vector2 moveInput;
+    private bool jumpRequested;
 
     private void Awake()
     {
         playerRigidbody = GetComponent<Rigidbody>();
+        playerCapsule = GetComponent<CapsuleCollider>();
         // 朝向由移动和挖掘主动设置，碰撞不应让角色自转。
         playerRigidbody.constraints |= RigidbodyConstraints.FreezeRotation;
 
@@ -44,17 +53,21 @@ public class PlayerMovement : MonoBehaviour
     private void OnEnable()
     {
         moveAction.action.Enable();
+        jumpAction?.action?.Enable();
     }
 
     private void OnDisable()
     {
         moveAction?.action?.Disable();
+        jumpAction?.action?.Disable();
         moveInput = Vector2.zero;
+        jumpRequested = false;
     }
 
     private void Update()
     {
         moveInput = moveAction.action.ReadValue<Vector2>();
+        jumpRequested |= jumpAction?.action?.WasPressedThisFrame() == true;
     }
 
     private void FixedUpdate()
@@ -75,10 +88,14 @@ public class PlayerMovement : MonoBehaviour
 
         moveDirection = Vector3.ClampMagnitude(moveDirection, 1f);
 
-        // 设置水平速度，保留物理系统计算的竖直速度。
+        // 设置水平速度，跳跃只在落地时写入向上的初速度。
         Vector3 velocity = playerRigidbody.linearVelocity;
         velocity.x = moveDirection.x * moveSpeed;
         velocity.z = moveDirection.z * moveSpeed;
+        if (jumpRequested && velocity.y <= 0f && IsGrounded())
+            velocity.y = jumpSpeed;
+
+        jumpRequested = false;
         playerRigidbody.linearVelocity = velocity;
 
         if (moveDirection.sqrMagnitude < 0.0001f)
@@ -96,5 +113,17 @@ public class PlayerMovement : MonoBehaviour
         );
 
         playerRigidbody.MoveRotation(nextRotation);
+    }
+
+    private bool IsGrounded()
+    {
+        if (playerCapsule == null)
+            return false;
+
+        Bounds bounds = playerCapsule.bounds;
+        float radius = Mathf.Min(bounds.extents.x, bounds.extents.z) * 0.85f;
+        float distance = bounds.extents.y - radius + groundCheckDistance;
+        return Physics.SphereCast(bounds.center, radius, Vector3.down, out RaycastHit hit, distance,
+            groundLayers, QueryTriggerInteraction.Ignore) && hit.normal.y >= 0.55f;
     }
 }

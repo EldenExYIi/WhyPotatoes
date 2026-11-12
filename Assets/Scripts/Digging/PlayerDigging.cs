@@ -85,13 +85,21 @@ public sealed class PlayerDigging : MonoBehaviour
 
             Vector3 offset = spot.ImpactPoint - transform.position;
             offset.y = 0f;
-            if (offset.sqrMagnitude >= bestDistance)
+            if (offset.sqrMagnitude >= bestDistance || IsObstructed(spot))
                 continue;
 
             bestDistance = offset.sqrMagnitude;
             nearest = spot;
         }
         return nearest;
+    }
+
+    private bool IsObstructed(DigSpot spot)
+    {
+        Vector3 end = spot.ImpactPoint + Vector3.up * settings.obstructionProbeOffset;
+        Vector3 start = transform.position;
+        start.y = end.y;
+        return Physics.Linecast(start, end, settings.obstructionLayers, QueryTriggerInteraction.Ignore);
     }
 
     private IEnumerator Dig(DigSpot target)
@@ -119,7 +127,7 @@ public sealed class PlayerDigging : MonoBehaviour
             yield return MoveGrip(restOffset, restRotation, settings.resetSeconds);
             target.RecordDig();
         }
-        while (interactAction.action.IsPressed());
+        while (interactAction.action.IsPressed() && !IsObstructed(target));
 
         RestoreControl();
     }
@@ -161,23 +169,48 @@ public sealed class PlayerDigging : MonoBehaviour
 
         phase = Phase.Reveal;
         Transform reveal = target.RevealPoint;
-        emergingPotato = Instantiate(target.Result.prefab, reveal.position, reveal.rotation);
         Vector3 finalPosition = reveal.position;
-        for (float elapsed = 0f; elapsed < settings.revealSeconds; elapsed += Time.deltaTime)
-        {
-            float t = elapsed / settings.revealSeconds;
-            float height = Mathf.Lerp(-0.42f, 0f, Mathf.SmoothStep(0f, 1f, t)) +
-                Mathf.Sin(t * Mathf.PI) * settings.revealHop;
-            emergingPotato.transform.position = finalPosition + Vector3.up * height;
-            yield return null;
-        }
-        emergingPotato.transform.position = finalPosition;
+        Quaternion finalRotation = reveal.rotation;
+        emergingPotato = Instantiate(target.Result.prefab, finalPosition, finalRotation);
+        yield return AnimateReveal(emergingPotato.transform, finalPosition, finalRotation);
         yield return MoveGrip(restOffset, restRotation, settings.resetSeconds);
 
         target.RecordDig();
         target.Complete();
         lastResult = target.Result;
+        if (emergingPotato.TryGetComponent(out PotatoRoll roll))
+        {
+            Vector3 direction = Vector3.ProjectOnPlane(finalPosition - body.position, Vector3.up).normalized;
+            if (direction == Vector3.zero)
+                direction = transform.forward;
+            roll.Begin(direction, lastResult.rollSpeed, lastResult.rollDelaySeconds, GetComponent<Collider>());
+        }
         emergingPotato = null;
+    }
+
+    private IEnumerator AnimateReveal(Transform potato, Vector3 landingPosition, Quaternion landingRotation)
+    {
+        const float liftEnd = 0.26f;
+        const float flipEnd = 0.82f;
+        Vector3 pivotOffset = potato.TryGetComponent(out MeshFilter mesh) && mesh.sharedMesh != null
+            ? potato.TransformVector(mesh.sharedMesh.bounds.center)
+            : Vector3.zero;
+        Vector3 flipAxis = landingRotation * Vector3.right;
+        float duration = settings.revealSeconds;
+
+        for (float elapsed = 0f; elapsed < duration; elapsed += Time.deltaTime)
+        {
+            float t = elapsed / duration;
+            float lift = Mathf.SmoothStep(-0.42f, settings.revealHoverHeight, Mathf.InverseLerp(0f, liftEnd, t));
+            float land = Mathf.SmoothStep(0f, settings.revealHoverHeight, Mathf.InverseLerp(flipEnd, 1f, t));
+            float turn = Mathf.SmoothStep(0f, 360f, Mathf.InverseLerp(liftEnd, flipEnd, t));
+            Quaternion flip = Quaternion.AngleAxis(-turn, flipAxis);
+            Vector3 position = landingPosition + Vector3.up * (lift - land) + pivotOffset - flip * pivotOffset;
+            potato.SetPositionAndRotation(position, flip * landingRotation);
+            yield return null;
+        }
+
+        potato.SetPositionAndRotation(landingPosition, landingRotation);
     }
 
     private IEnumerator MoveGrip(Vector3 offset, Quaternion rotation, float duration)

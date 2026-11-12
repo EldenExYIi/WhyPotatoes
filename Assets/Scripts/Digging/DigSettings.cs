@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [CreateAssetMenu(menuName = "Potatoes/Dig Settings")]
 public sealed class DigSettings : ScriptableObject
@@ -7,6 +8,9 @@ public sealed class DigSettings : ScriptableObject
     [Min(0.1f)] public float reach = 1.65f;
     [Min(1)] [Tooltip("Completed shovel strokes required to uncover one potato.")]
     public int digsRequired = 1;
+    [Tooltip("Solid layers that can block access to the mound.")]
+    public LayerMask obstructionLayers = Physics.DefaultRaycastLayers;
+    [Min(0f)] public float obstructionProbeOffset = 0.12f;
 
     [Header("Shovel pose")]
     public Vector3 tipOffset = new(0f, -1.06f, 0f);
@@ -28,7 +32,8 @@ public sealed class DigSettings : ScriptableObject
     [Min(0f)] public float moundWiggle = 0.08f;
 
     [Header("Reveal")]
-    [Min(0.01f)] public float revealSeconds = 0.38f;
-    [Min(0f)] public float revealHop = 0.32f;
+    [Min(0.01f)] public float revealSeconds = 0.95f;
+    [FormerlySerializedAs("revealHop")]
+    [Min(0f)] public float revealHoverHeight = 0.5f;
 }
 

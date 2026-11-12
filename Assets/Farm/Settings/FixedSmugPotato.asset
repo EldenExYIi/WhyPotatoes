@@ -12,4 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 90c351ee91c5e684da091d0f918fd655, type: 3}
   m_Name: FixedSmugPotato
   m_EditorClassIdentifier: Assembly-CSharp::DigResult
-  prefab: {fileID: 3808947152688592392, guid: e6aba4fb1e6090c47a4481ad304b6d06, type: 3}
+  prefab: {fileID: 9144605690214753931, guid: bfecf95841ae5684ab5e5075c523194d, type: 3}
+  rollSpeed: 0
+  rollDelaySeconds: 0

@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4a6c7f80fdcbecd468e69d4fe62f71f4, type: 3}
+  m_Name: DefaultDig
+  m_EditorClassIdentifier: Assembly-CSharp::DigSettings
+  reach: 1.65
+  digsRequired: 3
+  tipOffset: {x: 0, y: -1.06, z: 0}
+  raisedOffset: {x: 0.49, y: 0.69, z: 0.33}
+  raisedAngles: {x: -48, y: 0, z: -18}
+  contactAngles: {x: 27, y: 0, z: -12}
+  liftedOffset: {x: 0.42, y: 0.17, z: 0.79}
+  liftedAngles: {x: -65, y: 0, z: -15}
+  windupSeconds: 0.23
+  strikeSeconds: 0.14
+  prySeconds: 0.25
+  resetSeconds: 0.18
+  dirtPrefab: {fileID: 6932741593148196043, guid: 176c3f142c167e34986c7865d03cacd0, type: 3}
+  impactSound: {fileID: 8300000, guid: 5fc3b18047a2cbf4793a9a993b6de53b, type: 3}
+  impactVolume: 0.65
+  anticipationSeconds: 0.32
+  moundWiggle: 0.08
+  revealSeconds: 0.38
+  revealHop: 0.32

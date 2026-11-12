@@ -24,6 +24,10 @@ public class CameraMovement : MonoBehaviour
     [Tooltip("观察点相对于角色中心的高度。")]
     private float targetHeight = 0.5f;
 
+    [SerializeField]
+    [Tooltip("镜头沿自身右侧偏移的距离，单位为米。")]
+    private float shoulderOffset;
+
     [Header("鼠标控制")]
 
     [SerializeField]
@@ -116,7 +120,7 @@ public class CameraMovement : MonoBehaviour
 
         // 沿相机朝向的反方向退后，得到相机位置。
         Vector3 cameraPosition =
-            focusPosition - rotation * Vector3.forward * distance;
+            focusPosition + rotation * new Vector3(shoulderOffset, 0f, -distance);
 
         transform.SetPositionAndRotation(cameraPosition, rotation);
     }

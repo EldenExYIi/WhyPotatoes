@@ -29,6 +29,8 @@ public class PlayerMovement : MonoBehaviour
     private void Awake()
     {
         playerRigidbody = GetComponent<Rigidbody>();
+        // 朝向由移动和挖掘主动设置，碰撞不应让角色自转。
+        playerRigidbody.constraints |= RigidbodyConstraints.FreezeRotation;
 
         if (cameraTransform == null ||
             moveAction == null ||

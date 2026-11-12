@@ -26,6 +26,8 @@ MonoBehaviour:
   launchSpeed: 3.5
   hitSound: {fileID: 8300000, guid: 5fc3b18047a2cbf4793a9a993b6de53b, type: 3}
   hitVolume: 0.65
+  hitEffect: {fileID: 7199059726233308283, guid: c780d62649af8474eba03c7a21bb9660, type: 3}
+  hitEffectLifetime: 1
   shakeAmplitude: 0.045
   shakeSeconds: 0.14
   shakeFrequency: 24

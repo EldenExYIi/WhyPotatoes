@@ -23,6 +23,11 @@ public sealed class ShovelAttackSettings : ScriptableObject
     public AudioClip hitSound;
     [Range(0f, 1f)] public float hitVolume = 0.65f;
 
+    [Header("Hit effect")]
+    [Tooltip("Leave empty to disable particles. The prefab emits along its local +Z axis.")]
+    public ParticleSystem hitEffect;
+    [Min(0.01f)] public float hitEffectLifetime = 1f;
+
     [Header("Camera shake")]
     [Min(0f)] public float shakeAmplitude = 0.045f;
     [Min(0f)] public float shakeSeconds = 0.14f;

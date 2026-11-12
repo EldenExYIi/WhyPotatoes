@@ -140,6 +140,8 @@ public sealed class PlayerDigging : MonoBehaviour
             Vector3 away = Vector3.ProjectOnPlane(target.worldCenterOfMass - body.position, Vector3.up).normalized;
             if (away == Vector3.zero)
                 away = transform.forward;
+            if (attack.hitEffect != null)
+                PlayHitEffect(hit, from, to, -away, attack);
             target.AddForce(away * attack.knockbackSpeed + Vector3.up * attack.launchSpeed, ForceMode.VelocityChange);
         }
 
@@ -151,6 +153,27 @@ public sealed class PlayerDigging : MonoBehaviour
         if (cameraMovement != null)
             cameraMovement.Shake(attack.shakeAmplitude, attack.shakeSeconds, attack.shakeFrequency);
         return true;
+    }
+
+    private void PlayHitEffect(Collider hit, Vector3 from, Vector3 to, Vector3 fallbackNormal,
+        ShovelAttackSettings attack)
+    {
+        Bounds bounds = hit.bounds;
+        Vector3 sweep = to - from;
+        float sweepLengthSquared = sweep.sqrMagnitude;
+        float fraction = sweepLengthSquared > 0f
+            ? Mathf.Clamp01(Vector3.Dot(bounds.center - from, sweep) / sweepLengthSquared)
+            : 0f;
+        Vector3 normal = (from + sweep * fraction - bounds.center).normalized;
+        if (normal == Vector3.zero)
+            normal = fallbackNormal;
+
+        // Query from outside the collider so the effect spawns on its surface even on a deep overlap.
+        Vector3 contact = hit.ClosestPoint(bounds.center + normal * (bounds.extents.magnitude + 0.01f));
+        Quaternion rotation = Quaternion.LookRotation(normal + Vector3.up * 0.35f);
+        ParticleSystem effect = Instantiate(attack.hitEffect, contact, rotation);
+        effect.Play(true);
+        Destroy(effect.gameObject, attack.hitEffectLifetime);
     }
 
     public bool TryDig()

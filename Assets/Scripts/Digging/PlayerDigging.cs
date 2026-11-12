@@ -6,10 +6,12 @@ using UnityEngine.InputSystem;
 public sealed class PlayerDigging : MonoBehaviour
 {
     private enum Phase { Ready, Windup, Strike, Pry, Anticipation, Reveal, Reset }
+    private const float SwingImpactNormalizedTime = 0.5f;
 
     [SerializeField] private InputActionReference interactAction;
     [SerializeField] private DigSettings settings;
     [SerializeField] private Transform shovelGrip;
+    [SerializeField] private AnimationClip shovelSwing;
     [SerializeField] private DigSpot[] spots = System.Array.Empty<DigSpot>();
 
     [Header("Runtime inspection")]
@@ -135,15 +137,24 @@ public sealed class PlayerDigging : MonoBehaviour
     private IEnumerator PerformStroke(DigSpot target)
     {
         phase = Phase.Windup;
-        Quaternion raised = Quaternion.Euler(settings.raisedAngles);
         Quaternion contact = Quaternion.Euler(settings.contactAngles);
         Quaternion lifted = Quaternion.Euler(settings.liftedAngles);
-        yield return MoveGrip(settings.raisedOffset, raised, settings.windupSeconds);
 
-        phase = Phase.Strike;
+        if (shovelSwing == null)
+        {
+            Quaternion raised = Quaternion.Euler(settings.raisedAngles);
+            yield return MoveGrip(settings.raisedOffset, raised, settings.windupSeconds);
+            phase = Phase.Strike;
+        }
+
         Vector3 contactOffset = transform.InverseTransformPoint(target.ImpactPoint) -
             contact * settings.tipOffset;
-        yield return MoveGrip(contactOffset, contact, settings.strikeSeconds);
+        float impactTime = shovelSwing != null ? shovelSwing.length * SwingImpactNormalizedTime : 0f;
+        if (shovelSwing != null)
+            yield return PlaySwing(0f, impactTime, new Pose(contactOffset, contact),
+                settings.windupSeconds + settings.strikeSeconds, settings.windupSeconds);
+        else
+            yield return MoveGrip(contactOffset, contact, settings.strikeSeconds);
 
         if (settings.dirtPrefab != null)
         {
@@ -154,7 +165,46 @@ public sealed class PlayerDigging : MonoBehaviour
             audioSource.PlayOneShot(settings.impactSound, settings.impactVolume);
 
         phase = Phase.Pry;
-        yield return MoveGrip(settings.liftedOffset, lifted, settings.prySeconds);
+        if (shovelSwing != null)
+            yield return PlaySwing(impactTime, shovelSwing.length,
+                new Pose(settings.liftedOffset, lifted), settings.prySeconds);
+        else
+            yield return MoveGrip(settings.liftedOffset, lifted, settings.prySeconds);
+    }
+
+    private IEnumerator PlaySwing(float from, float to, Pose target, float duration,
+        float strikeStartsAt = float.PositiveInfinity)
+    {
+        var start = new Pose(shovelGrip.localPosition, shovelGrip.localRotation);
+        Pose clipStart = SampleSwing(from);
+        Pose clipEnd = SampleSwing(to);
+
+        for (float elapsed = 0f; elapsed < duration; elapsed += Time.deltaTime)
+        {
+            if (elapsed >= strikeStartsAt)
+                phase = Phase.Strike;
+
+            float t = elapsed / duration;
+            Pose sample = SampleSwing(Mathf.Lerp(from, to, t));
+            // Retarget the clip's endpoints to the grip and mound while keeping its motion between them.
+            Vector3 clipOffset = sample.position - Vector3.Lerp(clipStart.position, clipEnd.position, t);
+            Quaternion clipRotation = Quaternion.Inverse(Quaternion.Slerp(clipStart.rotation, clipEnd.rotation, t)) *
+                sample.rotation;
+            float blend = Mathf.SmoothStep(0f, 1f, t);
+            shovelGrip.SetLocalPositionAndRotation(
+                Vector3.Lerp(start.position, target.position, blend) + clipOffset,
+                Quaternion.Slerp(start.rotation, target.rotation, blend) * clipRotation);
+            yield return null;
+        }
+
+        shovelGrip.SetLocalPositionAndRotation(target.position, target.rotation);
+    }
+
+    private Pose SampleSwing(float time)
+    {
+        // The clip binds to ShovelPivot, a direct child of the player.
+        shovelSwing.SampleAnimation(gameObject, time);
+        return new Pose(shovelGrip.localPosition, shovelGrip.localRotation);
     }
 
     private IEnumerator Reveal(DigSpot target)

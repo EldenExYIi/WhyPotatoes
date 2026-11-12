@@ -11681,6 +11681,7 @@ MonoBehaviour:
   interactAction: {fileID: 11400000, guid: 2598c7262b5914049a1af8d7cb68429e, type: 2}
   settings: {fileID: 11400000, guid: 6fc0dce86a85dd442acb91bfd00ed0d1, type: 2}
   shovelGrip: {fileID: 1876788916}
+  shovelSwing: {fileID: 7400000, guid: 5b3f8f8adbb9dc445862a476c02ad1c4, type: 2}
   spots:
   - {fileID: 1218878346}
   - {fileID: 1934001263}
@@ -12973,7 +12974,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1876788916}
   m_Layer: 0
-  m_Name: Shovel Grip
+  m_Name: ShovelPivot
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
